@@ -1,0 +1,27 @@
+version = 1
+id = "WP-1.2.3"
+title = "Explore dependency neighborhoods and edge reasons"
+description = """
+Implement a focused dependency view for the selected package or workstream. Show legible prerequisite and dependent neighborhoods rather than requiring a dense whole-plan terminal graph. Let the user inspect dependency type and reason, jump to either endpoint, and return to the WBS with the relevant selection preserved. Clearly represent packages with no dependencies.
+"""
+out_of_scope = ["Editing dependency edges", "Automatic graph layout for an unrestricted whole-plan diagram", "Critical-path scheduling"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "The focused view lists every incoming and outgoing dependency for the selected package with endpoint, type, and full reason."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "The user can navigate from a dependency to its predecessor or successor and inspect that package."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "Returning from dependency exploration restores a meaningful WBS selection and navigation context."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "A package or workstream with no relevant edges produces an explicit empty state rather than an error."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_tui.py -k dependency"]
+

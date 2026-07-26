@@ -1,0 +1,27 @@
+version = 1
+id = "WP-1.2.2"
+title = "Inspect complete workstream and work-package details"
+description = """
+Populate the selected-item region of the plan TUI. A workstream selection shows its identity, title, ownership patterns, package count, contained packages, and rolled-up incoming and outgoing relationships. A work-package selection shows its ID, WBS position, task title and description, exclusions, acceptance criteria, verification commands, task path, prerequisites, and dependents. Long content must scroll without disrupting WBS navigation.
+"""
+out_of_scope = ["Editing task contracts", "Comment threads", "Verification status and run reports"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Selecting a workstream displays all documented workstream fields, its contained packages, and summarized incoming and outgoing relationships."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "Selecting a package displays every documented task-contract field plus WBS, workstream, task path, prerequisites, and dependents."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "Descriptions, criteria, commands, ownership entries, and dependency reasons are readable in a scrollable view without truncating the source content."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "Changing selection refreshes the detail pane without reparsing files or losing navigator focus."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_tui.py -k details"]
+

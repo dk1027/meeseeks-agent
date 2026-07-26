@@ -1,0 +1,31 @@
+version = 1
+id = "WP-1.3.2"
+title = "Prove and document the read-only plan exploration workflow"
+description = """
+Create representative checked-in execution-package fixtures and end-to-end tests for the public plan command. Prove that a user can traverse all workstreams, inspect a complete task, follow prerequisites and dependents, read dependency reasons, use the UI at 80 by 24, and exit without changing any source file. Include invalid fixtures for actionable failure behavior. Document the command, controls, read-only guarantee, and MVP limitations in the README.
+"""
+out_of_scope = ["Comments and revision workflows", "Plan execution or verification status", "Performance testing for extremely large plans"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "A representative valid fixture includes multiple workstreams, cross-stream dependencies, an integration join, an isolated package, exclusions, multiple criteria, and verification commands."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "End-to-end interaction tests open the fixture through the public command and exercise WBS navigation, full task details, dependency traversal, help, and exit."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "A test snapshots or hashes every plan and task file before exploration and proves they are byte-for-byte unchanged afterward."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "Invalid fixtures cover missing tasks, mismatched IDs, unknown dependency endpoints, and cycles with actionable command errors."
+
+[[acceptance_criteria]]
+id = "AC-5"
+description = "The README documents invocation, controls, supported content, read-only behavior, and the exclusion of comments, revision, execution, and status tracking from the MVP."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_command.py", "uv run pytest"]
+

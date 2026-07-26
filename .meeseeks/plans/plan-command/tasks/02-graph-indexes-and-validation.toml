@@ -1,0 +1,27 @@
+version = 1
+id = "WP-1.1.2"
+title = "Validate and index the plan dependency graph"
+description = """
+Complete execution-package validation and derive reusable graph indexes for the TUI. Validate unique workstream and package IDs, known workstream references, matching plan and task IDs, existing dependency endpoints, supported dependency types, and an acyclic graph. Build deterministic prerequisite, dependent, and workstream-rollup views without putting graph inference in UI widgets. Produce actionable errors with relevant file and object context.
+"""
+out_of_scope = ["Drawing a graph", "Plan repair", "Treating packages without dependencies as invalid"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Each package exposes deterministic prerequisite and dependent collections containing dependency type and reason."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "The model exposes incoming and outgoing relationships rolled up by workstream for overview presentation."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "Duplicate IDs, unknown references, mismatched task IDs, unsupported dependency types, and dependency cycles fail with actionable object-level diagnostics."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "A valid isolated work package loads with empty prerequisite and dependent collections."
+
+[verification]
+commands = ["uv run pytest tests/test_plan.py -k 'graph or validation'"]
+

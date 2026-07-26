@@ -1,0 +1,120 @@
+version = 1
+title = "Read-only plan explorer MVP"
+
+[[workstreams]]
+id = "model"
+title = "Execution-package loading and graph model"
+ownership = ["src/meeseeks/plan.py", "tests/test_plan.py"]
+
+[[workstreams]]
+id = "tui"
+title = "Terminal plan exploration experience"
+ownership = ["src/meeseeks/plan_tui/**", "tests/test_plan_tui.py"]
+
+[[workstreams]]
+id = "integration"
+title = "CLI integration and vertical-slice proof"
+ownership = ["src/meeseeks/commands/plan.py", "src/meeseeks/cli.py", "tests/fixtures/plans/**", "tests/test_plan_command.py", "README.md", "pyproject.toml"]
+
+[[work_packages]]
+id = "WP-1.1.1"
+wbs = "1.1.1"
+task = "tasks/01-plan-model-and-loader.toml"
+workstream = "model"
+
+[[work_packages]]
+id = "WP-1.1.2"
+wbs = "1.1.2"
+task = "tasks/02-graph-indexes-and-validation.toml"
+workstream = "model"
+
+[[work_packages]]
+id = "WP-1.2.1"
+wbs = "1.2.1"
+task = "tasks/03-tui-shell-and-wbs-navigation.toml"
+workstream = "tui"
+
+[[work_packages]]
+id = "WP-1.2.2"
+wbs = "1.2.2"
+task = "tasks/04-plan-item-details.toml"
+workstream = "tui"
+
+[[work_packages]]
+id = "WP-1.2.3"
+wbs = "1.2.3"
+task = "tasks/05-dependency-explorer.toml"
+workstream = "tui"
+
+[[work_packages]]
+id = "WP-1.3.1"
+wbs = "1.3.1"
+task = "tasks/06-plan-command-integration.toml"
+workstream = "integration"
+
+[[work_packages]]
+id = "WP-1.3.2"
+wbs = "1.3.2"
+task = "tasks/07-read-only-vertical-slice.toml"
+workstream = "integration"
+
+[[dependencies]]
+predecessor = "WP-1.1.1"
+successor = "WP-1.1.2"
+type = "interface"
+reason = "Graph indexes and cross-file validation operate on the canonical normalized execution-package model."
+
+[[dependencies]]
+predecessor = "WP-1.1.1"
+successor = "WP-1.2.1"
+type = "interface"
+reason = "The TUI renders typed workstreams and WBS-ordered work packages supplied by the loader."
+
+[[dependencies]]
+predecessor = "WP-1.2.1"
+successor = "WP-1.2.2"
+type = "interface"
+reason = "Item details are presented inside the established application shell and selection model."
+
+[[dependencies]]
+predecessor = "WP-1.1.2"
+successor = "WP-1.2.3"
+type = "interface"
+reason = "Dependency exploration consumes the normalized incoming and outgoing graph indexes."
+
+[[dependencies]]
+predecessor = "WP-1.2.1"
+successor = "WP-1.2.3"
+type = "interface"
+reason = "The dependency view reuses application navigation and restores the user's WBS selection."
+
+[[dependencies]]
+predecessor = "WP-1.1.1"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The command discovers a plan path, loads the execution package, and reports loader failures before launching the TUI."
+
+[[dependencies]]
+predecessor = "WP-1.2.1"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The command launches the completed Textual application through the existing Typer CLI."
+
+[[dependencies]]
+predecessor = "WP-1.2.2"
+successor = "WP-1.3.2"
+type = "integration"
+reason = "The vertical slice proves that complete work-package contracts are readable from checked-in fixtures."
+
+[[dependencies]]
+predecessor = "WP-1.2.3"
+successor = "WP-1.3.2"
+type = "integration"
+reason = "The vertical slice exercises dependency navigation and edge reasons."
+
+[[dependencies]]
+predecessor = "WP-1.3.1"
+successor = "WP-1.3.2"
+type = "integration"
+reason = "End-to-end tests enter the explorer through the public meeseeks plan command."
+

@@ -1,0 +1,27 @@
+version = 1
+id = "WP-1.1.1"
+title = "Load a normalized version 1 execution package"
+description = """
+Implement the typed plan models and loader used by the plan explorer. Load a version 1 plan TOML, resolve task paths relative to the plan file, parse every referenced task through the canonical task-contract parser, and return one normalized read-only execution-package model with workstreams, WBS-ordered work packages, task contracts, and dependencies. Preserve source paths for display and diagnostics.
+"""
+out_of_scope = ["Rendering the TUI", "Changing plan or task schemas", "Writing, migrating, or formatting execution-package files"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "A valid version 1 plan and all referenced task contracts load into typed models without semantic loss."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "Relative task paths are resolved from the directory containing the selected plan rather than from the process working directory."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "Work packages are exposed in deterministic WBS order while retaining their stable IDs, workstream membership, task paths, and complete task contracts."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "Loading an execution package does not change the plan, any task contract, or other repository files."
+
+[verification]
+commands = ["uv run pytest tests/test_plan.py -k loader"]
+

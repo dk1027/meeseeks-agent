@@ -1,0 +1,27 @@
+version = 1
+id = "WP-1.2.1"
+title = "Navigate workstreams and work packages in a terminal UI"
+description = """
+Add a Textual application shell for the read-only plan explorer. Present the plan title and a collapsible WBS navigator that groups packages by workstream and orders them by WBS position. Support keyboard-only movement, expansion, collapse, scrolling, contextual help, clean exit, and a visible current selection. Establish responsive regions for navigation and selected-item content that remain useful in an 80 by 24 terminal.
+"""
+out_of_scope = ["Comments or editing", "Dependency-detail behavior", "CLI plan discovery", "A browser or static HTML interface"]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Every workstream and work package in the supplied model is reachable through the collapsible WBS navigator in deterministic order."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "Arrow keys and documented alternative bindings navigate the tree, Enter expands or inspects, help is available, and q exits cleanly."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "Selection remains visible while navigating and scrolling, including at an 80 by 24 terminal size."
+
+[[acceptance_criteria]]
+id = "AC-4"
+description = "Textual UI tests cover startup, navigation, collapse and expansion, help, and exit without requiring an interactive terminal."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_tui.py -k 'shell or navigation'"]
+
