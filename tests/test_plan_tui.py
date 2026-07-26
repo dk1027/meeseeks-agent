@@ -15,7 +15,16 @@ from pathlib import Path
 
 import pytest
 
-from meeseeks.plan import ExecutionPackage, TaskContract, WorkPackage, Workstream
+from meeseeks.plan import (
+    AcceptanceCriterion,
+    Dependency,
+    DependencyEdge,
+    ExecutionPackage,
+    TaskContract,
+    WorkPackage,
+    Workstream,
+    WorkstreamEdge,
+)
 from meeseeks.plan_tui.app import PlanApp
 from meeseeks.plan_tui.navigator import WBSTree
 from meeseeks.plan_tui.screens import HelpScreen
@@ -203,3 +212,273 @@ async def test_quit_key_exits_cleanly() -> None:
         await pilot.press("q")
         await pilot.pause()
         assert not app.is_running
+
+
+def _task_with_contract_fields(
+    package_id: str,
+    title: str,
+    *,
+    description: str = "",
+    out_of_scope: tuple[str, ...] = (),
+    acceptance_criteria: tuple[AcceptanceCriterion, ...] = (),
+    verification_commands: tuple[str, ...] = (),
+) -> TaskContract:
+    return TaskContract(
+        version=1,
+        id=package_id,
+        title=title,
+        description=description or f"Description for {package_id}.",
+        out_of_scope=out_of_scope,
+        acceptance_criteria=acceptance_criteria,
+        verification_commands=verification_commands,
+        path=Path(f"tasks/{package_id}.toml"),
+    )
+
+
+def build_package_with_relationships() -> ExecutionPackage:
+    """Two workstreams with a cross-workstream dependency, so rollups and
+    per-package prerequisite/dependent edges are populated directly (bypassing
+    `load_execution_package`, per this file's fixture convention).
+    """
+    foundation = Workstream(
+        id="foundation",
+        title="Foundation",
+        ownership=("src/model/**", "src/loader/**"),
+        outgoing=(
+            WorkstreamEdge(
+                workstream_id="tui",
+                type="hard",
+                reason="TUI renders the loader's normalized model.",
+            ),
+        ),
+    )
+    tui = Workstream(
+        id="tui",
+        title="TUI",
+        ownership=("src/plan_tui/**",),
+        incoming=(
+            WorkstreamEdge(
+                workstream_id="foundation",
+                type="hard",
+                reason="TUI renders the loader's normalized model.",
+            ),
+        ),
+    )
+
+    upstream = WorkPackage(
+        id="WP-1.1.1",
+        wbs="1.1.1",
+        workstream_id="foundation",
+        task_path=Path("tasks/01.toml"),
+        task=_task_with_contract_fields(
+            "WP-1.1.1",
+            "Architecture",
+            description="Builds the normalized model.",
+            out_of_scope=("Editing task contracts",),
+            acceptance_criteria=(
+                AcceptanceCriterion(id="AC-1", description="Loads a valid plan."),
+            ),
+            verification_commands=("uv run pytest tests/test_plan.py",),
+        ),
+        dependents=(
+            DependencyEdge(
+                package_id="WP-1.2.2",
+                type="hard",
+                reason="Detail pane renders the loader's model.",
+            ),
+        ),
+    )
+    downstream = WorkPackage(
+        id="WP-1.2.2",
+        wbs="1.2.2",
+        workstream_id="tui",
+        task_path=Path("tasks/04.toml"),
+        task=_task_with_contract_fields(
+            "WP-1.2.2",
+            "Item details",
+            description="Populates the detail pane.",
+        ),
+        prerequisites=(
+            DependencyEdge(
+                package_id="WP-1.1.1",
+                type="hard",
+                reason="Detail pane renders the loader's model.",
+            ),
+        ),
+    )
+
+    return ExecutionPackage(
+        version=1,
+        title="Relationships plan",
+        path=Path("plan.toml"),
+        workstreams=(foundation, tui),
+        work_packages=(upstream, downstream),
+        dependencies=(
+            Dependency(
+                predecessor="WP-1.1.1",
+                successor="WP-1.2.2",
+                type="hard",
+                reason="Detail pane renders the loader's model.",
+            ),
+        ),
+    )
+
+
+def build_package_with_long_content() -> ExecutionPackage:
+    """A single package whose description and acceptance criteria are long
+    enough to require scrolling in the detail pane.
+    """
+    long_description = "\n".join(
+        f"Paragraph {i}: this line has some bracket-y content like [not markup]."
+        for i in range(60)
+    )
+    criteria = tuple(
+        AcceptanceCriterion(id=f"AC-{i}", description=f"Criterion number {i} must hold.")
+        for i in range(40)
+    )
+    workstream = Workstream(id="tui", title="TUI", ownership=("src/plan_tui/**",))
+    work_package = WorkPackage(
+        id="WP-1.2.2",
+        wbs="1.2.2",
+        workstream_id="tui",
+        task_path=Path("tasks/04.toml"),
+        task=_task_with_contract_fields(
+            "WP-1.2.2",
+            "Item details",
+            description=long_description,
+            acceptance_criteria=criteria,
+        ),
+    )
+    return ExecutionPackage(
+        version=1,
+        title="Long content plan",
+        path=Path("plan.toml"),
+        workstreams=(workstream,),
+        work_packages=(work_package,),
+        dependencies=(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_details_workstream_selection_shows_all_fields_and_rollups() -> None:
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 0
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        detail = app.query_one("#detail")
+        text = detail.text
+
+        assert "foundation" in text
+        assert "Foundation" in text
+        assert "src/model/**" in text
+        assert "src/loader/**" in text
+        assert "WP-1.1.1" in text
+        assert "Architecture" in text
+        assert "tui" in text
+        assert "hard" in text
+        assert "TUI renders the loader's normalized model." in text
+
+
+@pytest.mark.asyncio
+async def test_details_work_package_selection_shows_full_contract_and_graph_context() -> None:
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        # Index 2 is the second work package (downstream, WP-1.2.2) under "tui":
+        # 0=foundation, 1=WP-1.1.1, 2=tui, 3=WP-1.2.2.
+        tree.cursor_line = 3
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        detail = app.query_one("#detail")
+        text = detail.text
+
+        assert "WP-1.2.2" in text
+        assert "1.2.2" in text
+        assert "tui" in text
+        assert "tasks/04.toml" in text
+        assert "Item details" in text
+        assert "Populates the detail pane." in text
+        assert "WP-1.1.1" in text
+        assert "Detail pane renders the loader's model." in text
+
+
+@pytest.mark.asyncio
+async def test_details_work_package_shows_every_documented_task_contract_field() -> None:
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1  # WP-1.1.1, under "foundation".
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        detail = app.query_one("#detail")
+        text = detail.text
+
+        assert "Builds the normalized model." in text
+        assert "Editing task contracts" in text
+        assert "AC-1" in text
+        assert "Loads a valid plan." in text
+        assert "uv run pytest tests/test_plan.py" in text
+
+
+@pytest.mark.asyncio
+async def test_details_long_description_and_criteria_are_not_truncated() -> None:
+    package = build_package_with_long_content()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1  # The lone work package, under "tui".
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        detail = app.query_one("#detail")
+        text = detail.text
+
+        # Every paragraph and every acceptance criterion survives, including
+        # bracket-y content that would otherwise be mistaken for markup.
+        assert "Paragraph 0:" in text
+        assert "Paragraph 59:" in text
+        assert "[not markup]" in text
+        assert "AC-0" in text
+        assert "AC-39" in text
+        assert "Criterion number 39 must hold." in text
+
+
+@pytest.mark.asyncio
+async def test_details_selecting_new_item_refreshes_pane_without_losing_navigator_focus() -> (
+    None
+):
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        detail = app.query_one("#detail")
+        assert "WP-1.1.1" in detail.text
+
+        assert app.focused is tree
+
+        tree.cursor_line = 3
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert "WP-1.2.2" in detail.text
+        assert "Item details" in detail.text
+        assert "Architecture" not in detail.text
+        assert app.focused is tree
