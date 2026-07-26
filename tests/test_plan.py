@@ -229,3 +229,243 @@ workstream = "model"
 
     with pytest.raises(PlanLoadError, match="missing required field 'title'"):
         load_execution_package(plan_path)
+
+
+# --- Graph indexes and validation (WP-1.1.2) ------------------------------
+
+
+def test_loader_builds_deterministic_prerequisite_and_dependent_graph_indexes(
+    tmp_path: Path,
+):
+    plan_path = _write_plan(tmp_path)
+
+    package = load_execution_package(plan_path)
+
+    first = next(wp for wp in package.work_packages if wp.id == "WP-1.1")
+    second = next(wp for wp in package.work_packages if wp.id == "WP-1.2")
+
+    assert first.prerequisites == ()
+    assert len(first.dependents) == 1
+    dependent_edge = first.dependents[0]
+    assert dependent_edge.package_id == "WP-1.2"
+    assert dependent_edge.type == "interface"
+    assert dependent_edge.reason == "The TUI renders the loader's normalized model."
+
+    assert second.dependents == ()
+    assert len(second.prerequisites) == 1
+    prerequisite_edge = second.prerequisites[0]
+    assert prerequisite_edge.package_id == "WP-1.1"
+    assert prerequisite_edge.type == "interface"
+    assert prerequisite_edge.reason == "The TUI renders the loader's normalized model."
+
+
+def test_loader_rolls_up_cross_workstream_graph_edges_onto_workstreams(tmp_path: Path):
+    plan_path = _write_plan(tmp_path)
+
+    package = load_execution_package(plan_path)
+
+    model_ws = next(ws for ws in package.workstreams if ws.id == "model")
+    tui_ws = next(ws for ws in package.workstreams if ws.id == "tui")
+
+    assert model_ws.incoming == ()
+    assert len(model_ws.outgoing) == 1
+    assert model_ws.outgoing[0].workstream_id == "tui"
+    assert model_ws.outgoing[0].type == "interface"
+
+    assert tui_ws.outgoing == ()
+    assert len(tui_ws.incoming) == 1
+    assert tui_ws.incoming[0].workstream_id == "model"
+    assert tui_ws.incoming[0].type == "interface"
+
+
+def test_loader_gives_isolated_work_package_empty_graph_indexes(tmp_path: Path):
+    (tmp_path / "tasks").mkdir(parents=True)
+    plan_path = tmp_path / "plan.toml"
+    plan_path.write_text(
+        """
+version = 1
+title = "Sample"
+
+[[workstreams]]
+id = "model"
+title = "Model"
+ownership = []
+
+[[work_packages]]
+id = "WP-1.1"
+wbs = "1.1"
+task = "tasks/first.toml"
+workstream = "model"
+"""
+    )
+    (tmp_path / "tasks" / "first.toml").write_text(FIRST_TASK_TOML)
+
+    package = load_execution_package(plan_path)
+
+    first = package.work_packages[0]
+    assert first.prerequisites == ()
+    assert first.dependents == ()
+    model_ws = package.workstreams[0]
+    assert model_ws.incoming == ()
+    assert model_ws.outgoing == ()
+
+
+def test_loader_rejects_duplicate_workstream_ids_validation(tmp_path: Path):
+    (tmp_path / "tasks").mkdir(parents=True)
+    plan_path = tmp_path / "plan.toml"
+    plan_path.write_text(
+        """
+version = 1
+title = "Sample"
+
+[[workstreams]]
+id = "model"
+title = "Model"
+ownership = []
+
+[[workstreams]]
+id = "model"
+title = "Model again"
+ownership = []
+"""
+    )
+
+    with pytest.raises(PlanLoadError, match="duplicate workstream id 'model'"):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_duplicate_work_package_ids_validation(tmp_path: Path):
+    (tmp_path / "tasks").mkdir(parents=True)
+    plan_path = tmp_path / "plan.toml"
+    plan_path.write_text(
+        """
+version = 1
+title = "Sample"
+
+[[workstreams]]
+id = "model"
+title = "Model"
+ownership = []
+
+[[work_packages]]
+id = "WP-1.1"
+wbs = "1.1"
+task = "tasks/first.toml"
+workstream = "model"
+
+[[work_packages]]
+id = "WP-1.1"
+wbs = "1.2"
+task = "tasks/first.toml"
+workstream = "model"
+"""
+    )
+    (tmp_path / "tasks" / "first.toml").write_text(FIRST_TASK_TOML)
+
+    with pytest.raises(PlanLoadError, match="duplicate work package id 'WP-1.1'"):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_work_package_referencing_unknown_workstream_validation(
+    tmp_path: Path,
+):
+    (tmp_path / "tasks").mkdir(parents=True)
+    plan_path = tmp_path / "plan.toml"
+    plan_path.write_text(
+        """
+version = 1
+title = "Sample"
+
+[[workstreams]]
+id = "model"
+title = "Model"
+ownership = []
+
+[[work_packages]]
+id = "WP-1.1"
+wbs = "1.1"
+task = "tasks/first.toml"
+workstream = "ghost"
+"""
+    )
+    (tmp_path / "tasks" / "first.toml").write_text(FIRST_TASK_TOML)
+
+    with pytest.raises(
+        PlanLoadError,
+        match="work package 'WP-1.1' references unknown workstream 'ghost'",
+    ):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_task_contract_id_mismatch_validation(tmp_path: Path):
+    (tmp_path / "tasks").mkdir(parents=True)
+    plan_path = tmp_path / "plan.toml"
+    plan_path.write_text(
+        """
+version = 1
+title = "Sample"
+
+[[workstreams]]
+id = "model"
+title = "Model"
+ownership = []
+
+[[work_packages]]
+id = "WP-1.1"
+wbs = "1.1"
+task = "tasks/first.toml"
+workstream = "model"
+"""
+    )
+    mismatched_task = FIRST_TASK_TOML.replace('id = "WP-1.1"', 'id = "WP-9.9"')
+    (tmp_path / "tasks" / "first.toml").write_text(mismatched_task)
+
+    with pytest.raises(
+        PlanLoadError,
+        match="work package 'WP-1.1'.*task contract.*id 'WP-9.9' does not match",
+    ):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_dependency_with_unknown_predecessor_validation(tmp_path: Path):
+    plan_path = _write_plan(tmp_path)
+    text = plan_path.read_text().replace(
+        'predecessor = "WP-1.1"', 'predecessor = "WP-9.9"'
+    )
+    plan_path.write_text(text)
+
+    with pytest.raises(PlanLoadError, match="unknown predecessor work package 'WP-9.9'"):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_dependency_with_unknown_successor_validation(tmp_path: Path):
+    plan_path = _write_plan(tmp_path)
+    text = plan_path.read_text().replace('successor = "WP-1.2"', 'successor = "WP-9.9"')
+    plan_path.write_text(text)
+
+    with pytest.raises(PlanLoadError, match="unknown successor work package 'WP-9.9'"):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_unsupported_dependency_type_validation(tmp_path: Path):
+    plan_path = _write_plan(tmp_path)
+    text = plan_path.read_text().replace('type = "interface"', 'type = "vibes"')
+    plan_path.write_text(text)
+
+    with pytest.raises(PlanLoadError, match="unsupported dependency type 'vibes'"):
+        load_execution_package(plan_path)
+
+
+def test_loader_rejects_dependency_cycle_validation(tmp_path: Path):
+    plan_path = _write_plan(tmp_path)
+    text = plan_path.read_text() + (
+        "\n[[dependencies]]\n"
+        'predecessor = "WP-1.2"\n'
+        'successor = "WP-1.1"\n'
+        'type = "hard"\n'
+        'reason = "Manufactured cycle for the test."\n'
+    )
+    plan_path.write_text(text)
+
+    with pytest.raises(PlanLoadError, match="dependency cycle detected"):
+        load_execution_package(plan_path)
