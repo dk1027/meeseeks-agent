@@ -1,0 +1,28 @@
+[project]
+name = "meeseeks"
+version = "0.1.0"
+description = "Independent software change verification agent — CLI and skills collection."
+readme = "README.md"
+authors = [
+    { name = "Long Tse", email = "dk1027@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.15",
+    "rich>=13.9",
+]
+
+[project.scripts]
+meeseeks = "meeseeks.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.11.23,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
