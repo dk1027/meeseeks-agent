@@ -11,6 +11,7 @@ import typer
 from meeseeks import __version__
 from meeseeks.commands.draft import draft
 from meeseeks.commands.init import init
+from meeseeks.commands.plan import plan
 from meeseeks.commands.verify import verify
 from meeseeks.console import console, render_banner
 
@@ -25,6 +26,7 @@ app = typer.Typer(
 app.command(name="init")(init)
 app.command(name="draft")(draft)
 app.command(name="verify")(verify)
+app.command(name="plan")(plan)
 
 
 def _version_callback(value: bool) -> None:

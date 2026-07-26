@@ -147,6 +147,8 @@ Version 1 dependency types are `hard`, `interface`, `decision`, `environment`, `
 
 For the MVP, `meeseeks verify` consumes individual task files. The plan is produced by `meeseeks-wbsify` for people and builder agents; plan-level orchestration is a later capability.
 
+Run `meeseeks plan` to open a read-only explorer over an execution package: a collapsible workstream/work-package tree with a detail pane for the selected item. With no argument it looks for `.meeseeks/plan.toml` in the current directory; pass a path (`meeseeks plan path/to/plan.toml`) to open a plan elsewhere. The plan and every task file it references are validated before the explorer opens; a missing, malformed, unsupported, or inconsistent execution package fails with an actionable message and a nonzero exit instead of launching.
+
 ### Output
 
 Meeseeks creates a directory under `.meeseeks/runs` using the task name and a timestamp. Existing verification runs are never overwritten.
