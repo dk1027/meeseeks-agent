@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meeseeks WBSify"
+  short_description: "Turn scope into verifiable Meeseeks work graphs"
+  default_prompt: "Use $meeseeks-wbsify to decompose this scope into a Meeseeks WBS, task contracts, parallel workstreams, and a dependency-mapped plan."

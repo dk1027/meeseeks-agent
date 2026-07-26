@@ -5,13 +5,13 @@ _Don't tell me it is done. Show me it is done_
 Meeseeks is an independent software change verification agent that comes as a CLI and skills collection. Give it a task description and acceptance criteria, and it will review code, run checks, look for edge cases, and provide a final verdict backed by reproducible evidence.
 
 
-1. Build code and write tests using your favorite methods. Run `meeseeks draft <your-task.toml>` or the `/meeseeks.draft_task_summary` skill to create a task TOML file that describes what you've built. You can also draft the task before you start building; Meeseeks will help you define the task and its acceptance criteria.
+1. Define the work. Run `meeseeks draft <your-task.toml>` to create one verification contract, or invoke the `meeseeks-wbsify` skill to decompose broader scope into a work breakdown structure, parallel workstreams, a dependency map, and task TOML files.
 
-2. Call Meeseeks by running `meeseeks verify <your-task.toml>` or `/meeseeks.verify` to adversarially review the code. Meeseeks verifies completeness and correctness against the task TOML, starting from the assumption that the work may be incomplete or incorrect. It also scrutinizes the task specification to avoid garbage-in, garbage-out results.
+2. Build code and tests using your preferred tools. Each task TOML represents one independently verifiable work package.
 
-3. Meeseeks declares the task `complete`, `incomplete`, or `inconclusive` and produces evidence to support the verdict.
+3. Run `meeseeks verify <your-task.toml>` to adversarially review the work. Meeseeks verifies completeness and correctness against the task contract, starting from the assumption that the work may be incomplete or incorrect. It also scrutinizes the contract to avoid garbage-in, garbage-out results.
 
-4. Run `/meeseeks.tell_project_context` to tell Meeseeks how your project works—for example, how to build and test it.
+4. Meeseeks declares the work package `complete`, `incomplete`, or `inconclusive` and produces evidence to support the verdict.
 
 
 Meeseeks looks for `AGENTS.md` and `CLAUDE.md` from the current directory. You can specify additional instruction files in `.meeseeks/config.toml`:
@@ -29,21 +29,33 @@ Run `meeseeks init` at your repository root to create a `.meeseeks` directory.
 
 ## How to use Meeseeks to verify work
 
-Run `meeseeks draft .meeseeks/your-task.toml`, use the `/meeseeks.draft_task_summary` skill, or write the file by hand. The command and skill both guide you through the task description, observable acceptance criteria, exclusions, and useful verification commands, and produce the same task format.
+Run `meeseeks draft .meeseeks/tasks/your-task.toml` or write the file by hand. For broader scope, invoke the `meeseeks-wbsify` skill. It creates `.meeseeks/plan.toml` plus one task contract per leaf work package under `.meeseeks/tasks/`.
+
+The `meeseeks-` prefix provides a consistent namespace while keeping the skill portable across hosts:
+
+```text
+Codex:       $meeseeks-wbsify
+Claude Code: /meeseeks-wbsify
+```
 
 ## Meeseeks input and output
 
 ### Task TOML file
 
-The task file is the verification contract. Acceptance criteria should describe observable outcomes rather than implementation steps.
+The task file is the verification contract for one work package. Its stable `id` connects it to the WBS and dependency graph. Acceptance criteria describe observable outcomes rather than implementation steps.
 
 ```toml
 version = 1
+id = "WP-1.2.3"
 title = "Add rate limiting to the login endpoint"
 description = """
 Limit repeated failed login attempts from a single IP address without changing
 the behavior of successful logins.
 """
+
+out_of_scope = [
+    "Sharing rate-limit state between application instances",
+]
 
 [[acceptance_criteria]]
 id = "AC-1"
@@ -57,10 +69,6 @@ description = "A successful login resets the failure count for that IP."
 id = "AC-3"
 description = "Failed attempts are allowed again after the ten-minute window expires."
 
-out_of_scope = [
-    "Sharing rate-limit state between application instances",
-]
-
 [verification]
 commands = [
     "pytest tests/auth",
@@ -68,7 +76,76 @@ commands = [
 ]
 ```
 
-Each acceptance criterion has a stable ID so the report can connect its verdict to specific evidence. Verification commands are useful project hints, not proof by themselves; Meeseeks may inspect code and perform additional checks.
+The work-package ID must be unique within its plan. Each acceptance criterion has a stable ID within the work package so the report can connect its verdict to specific evidence. Verification commands are useful project hints, not proof by themselves; Meeseeks may inspect code and perform additional checks.
+
+### Work-plan TOML file
+
+The plan is an orchestration artifact, not a verification contract. It records the WBS, task files, workstream ownership, dependencies, and integration gates without duplicating acceptance criteria.
+
+```toml
+version = 1
+title = "Meeseeks MVP"
+
+[[workstreams]]
+id = "authoring"
+title = "Task authoring"
+ownership = [
+    "src/meeseeks/task.py",
+    "src/meeseeks/commands/draft.py",
+    "skills/draft-task/**",
+]
+
+[[workstreams]]
+id = "verification"
+title = "Verification infrastructure"
+ownership = [
+    "src/meeseeks/runs.py",
+    "src/meeseeks/context.py",
+    "src/meeseeks/report.py",
+]
+
+[[workstreams]]
+id = "integration"
+title = "Integrated verifier"
+ownership = [
+    "src/meeseeks/cli.py",
+    "src/meeseeks/commands/verify.py",
+]
+
+[[work_packages]]
+id = "WP-1.1.1"
+wbs = "1.1.1"
+task = "tasks/01-task-contract.toml"
+workstream = "authoring"
+
+[[work_packages]]
+id = "WP-1.2.1"
+wbs = "1.2.1"
+task = "tasks/05-run-storage-and-commands.toml"
+workstream = "verification"
+
+[[work_packages]]
+id = "WP-1.3.1"
+wbs = "1.3.1"
+task = "tasks/08-verification-backend.toml"
+workstream = "integration"
+
+[[dependencies]]
+predecessor = "WP-1.1.1"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The integrated verifier consumes the canonical task contract."
+
+[[dependencies]]
+predecessor = "WP-1.2.1"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The integrated verifier consumes immutable run storage and command evidence."
+```
+
+Version 1 dependency types are `hard`, `interface`, `decision`, `environment`, `preferred`, and `integration`. Work packages referenced by dependencies must exist in the same plan. Ownership entries document coordination boundaries; they are not filesystem permissions.
+
+For the MVP, `meeseeks verify` consumes individual task files. The plan is produced by `meeseeks-wbsify` for people and builder agents; plan-level orchestration is a later capability.
 
 ### Output
 
