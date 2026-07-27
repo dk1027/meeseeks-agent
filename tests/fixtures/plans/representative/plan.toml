@@ -1,0 +1,83 @@
+version = 1
+title = "Representative fixture plan"
+
+[[workstreams]]
+id = "foundation"
+title = "Foundation"
+ownership = ["src/model/**", "src/loader/**"]
+
+[[workstreams]]
+id = "tui"
+title = "TUI"
+ownership = ["src/plan_tui/**"]
+
+[[workstreams]]
+id = "integration"
+title = "Integration"
+ownership = ["src/commands/plan.py"]
+
+[[work_packages]]
+id = "WP-1.1.1"
+wbs = "1.1.1"
+task = "tasks/wp-1.1.1.toml"
+workstream = "foundation"
+
+[[work_packages]]
+id = "WP-1.1.2"
+wbs = "1.1.2"
+task = "tasks/wp-1.1.2.toml"
+workstream = "foundation"
+
+[[work_packages]]
+id = "WP-1.1.3"
+wbs = "1.1.3"
+task = "tasks/wp-1.1.3.toml"
+workstream = "foundation"
+
+[[work_packages]]
+id = "WP-1.2.1"
+wbs = "1.2.1"
+task = "tasks/wp-1.2.1.toml"
+workstream = "tui"
+
+[[work_packages]]
+id = "WP-1.2.2"
+wbs = "1.2.2"
+task = "tasks/wp-1.2.2.toml"
+workstream = "tui"
+
+[[work_packages]]
+id = "WP-1.3.1"
+wbs = "1.3.1"
+task = "tasks/wp-1.3.1.toml"
+workstream = "integration"
+
+[[dependencies]]
+predecessor = "WP-1.1.1"
+successor = "WP-1.1.2"
+type = "hard"
+reason = "The loader consumes the data model."
+
+[[dependencies]]
+predecessor = "WP-1.1.2"
+successor = "WP-1.2.1"
+type = "interface"
+reason = "The TUI shell renders the loader's normalized model."
+
+[[dependencies]]
+predecessor = "WP-1.2.1"
+successor = "WP-1.2.2"
+type = "hard"
+reason = "The detail pane extends the TUI shell's regions."
+
+[[dependencies]]
+predecessor = "WP-1.1.2"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The integrated plan command loads execution packages through the loader."
+
+[[dependencies]]
+predecessor = "WP-1.2.2"
+successor = "WP-1.3.1"
+type = "integration"
+reason = "The integrated plan command launches the TUI shell with a populated detail pane."

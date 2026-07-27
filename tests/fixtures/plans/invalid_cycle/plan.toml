@@ -1,0 +1,31 @@
+version = 1
+title = "Invalid plan (dependency cycle)"
+
+[[workstreams]]
+id = "core"
+title = "Core workstream"
+ownership = ["src/**"]
+
+[[work_packages]]
+id = "WP-1"
+wbs = "1"
+task = "tasks/wp-1.toml"
+workstream = "core"
+
+[[work_packages]]
+id = "WP-2"
+wbs = "2"
+task = "tasks/wp-2.toml"
+workstream = "core"
+
+[[dependencies]]
+predecessor = "WP-1"
+successor = "WP-2"
+type = "hard"
+reason = "WP-2 depends on WP-1's output."
+
+[[dependencies]]
+predecessor = "WP-2"
+successor = "WP-1"
+type = "hard"
+reason = "WP-1 depends on WP-2's output, forming a cycle."

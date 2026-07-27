@@ -1,0 +1,14 @@
+version = 1
+id = "WP-1.2.1"
+title = "TUI shell"
+description = """
+Establish the Textual application shell: title bar, collapsible WBS
+navigator, and a selected-item detail pane.
+"""
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Launching the shell shows every workstream and work package in WBS order."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_tui.py::test_shell_startup_shows_title_and_all_workstreams_and_packages"]

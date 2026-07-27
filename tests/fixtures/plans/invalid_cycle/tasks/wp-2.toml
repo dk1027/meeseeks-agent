@@ -1,0 +1,11 @@
+version = 1
+id = "WP-2"
+title = "Fixture task two"
+description = "Do the second fixture thing."
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "The second fixture thing is done."
+
+[verification]
+commands = ["true"]

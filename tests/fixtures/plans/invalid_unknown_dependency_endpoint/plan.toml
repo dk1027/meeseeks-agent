@@ -1,0 +1,19 @@
+version = 1
+title = "Invalid plan (unknown dependency endpoint)"
+
+[[workstreams]]
+id = "core"
+title = "Core workstream"
+ownership = ["src/**"]
+
+[[work_packages]]
+id = "WP-1"
+wbs = "1"
+task = "tasks/wp-1.toml"
+workstream = "core"
+
+[[dependencies]]
+predecessor = "WP-1"
+successor = "WP-DOES-NOT-EXIST"
+type = "hard"
+reason = "This successor id is not declared as any work package."

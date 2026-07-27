@@ -1,0 +1,11 @@
+version = 1
+id = "WP-999"
+title = "Fixture task with a mismatched id"
+description = "This task contract's id does not match the work package that references it."
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "The fixture thing is done."
+
+[verification]
+commands = ["true"]

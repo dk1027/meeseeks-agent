@@ -1,0 +1,14 @@
+version = 1
+id = "WP-1.2.2"
+title = "Detail pane and dependency screen"
+description = """
+Render the full task-contract detail for a selected work package and add a
+focused dependency-explorer screen with jump-to-neighbor navigation.
+"""
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Selecting a work package renders its full contract: description, out-of-scope, acceptance criteria, and verification commands."
+
+[verification]
+commands = ["uv run pytest tests/test_plan_tui.py"]

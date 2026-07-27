@@ -1,0 +1,18 @@
+version = 1
+id = "WP-1.1.1"
+title = "Data model"
+description = """
+Define the typed dataclasses for the execution-package model: workstreams,
+work packages, task contracts, and dependency edges.
+"""
+
+out_of_scope = [
+    "Migrating existing production plan files to a new schema version",
+]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Every model type is a frozen dataclass with no mutation methods."
+
+[verification]
+commands = ["uv run pytest tests/test_plan.py::test_model"]
