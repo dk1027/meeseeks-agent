@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from textual.widgets import OptionList
 
 from meeseeks.plan import (
     AcceptanceCriterion,
@@ -27,7 +28,7 @@ from meeseeks.plan import (
 )
 from meeseeks.plan_tui.app import PlanApp
 from meeseeks.plan_tui.navigator import WBSTree
-from meeseeks.plan_tui.screens import HelpScreen
+from meeseeks.plan_tui.screens import DependencyScreen, HelpScreen
 
 
 def _task(package_id: str, title: str) -> TaskContract:
@@ -482,3 +483,181 @@ async def test_details_selecting_new_item_refreshes_pane_without_losing_navigato
         assert "Item details" in detail.text
         assert "Architecture" not in detail.text
         assert app.focused is tree
+
+
+@pytest.mark.asyncio
+async def test_dependency_key_opens_dependency_screen_for_cursor_selection() -> None:
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1  # WP-1.1.1, under "foundation".
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        assert isinstance(app.screen, DependencyScreen)
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_lists_workstream_incoming_and_outgoing_edges() -> None:
+    """AC-1: every incoming/outgoing edge for a workstream, with endpoint,
+    type, and full reason."""
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 0  # "foundation" workstream.
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        options = screen.query_one("#dep-options", OptionList)
+        rendered = " ".join(str(option.prompt) for option in options.options)
+
+        assert "tui" in rendered
+        assert "hard" in rendered
+        assert "TUI renders the loader's normalized model." in rendered
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_lists_work_package_prerequisites_and_dependents() -> None:
+    """AC-1: every prerequisite/dependent edge for a work package, with
+    endpoint, type, and full reason."""
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 3  # WP-1.2.2, under "tui".
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        options = screen.query_one("#dep-options", OptionList)
+        rendered = " ".join(str(option.prompt) for option in options.options)
+
+        assert "WP-1.1.1" in rendered
+        assert "hard" in rendered
+        assert "Detail pane renders the loader's model." in rendered
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_jump_navigates_to_neighbor_and_inspects_it() -> None:
+    """AC-2: selecting a dependency edge jumps to that neighbor and shows
+    its own details/edges."""
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 3  # WP-1.2.2, under "tui".
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        options = screen.query_one("#dep-options", OptionList)
+
+        option_id = next(
+            option_id
+            for option_id, neighbor_id in screen._targets.items()
+            if neighbor_id == "WP-1.1.1"
+        )
+        options.highlighted = options.get_option_index(option_id)
+        options.action_select()
+        await pilot.pause()
+
+        header = screen.query_one("#dep-header")
+        assert "WP-1.1.1" in header.text
+        assert "Architecture" in header.text
+
+        # WP-1.1.1's own dependents (WP-1.2.2) are now shown too.
+        rendered = " ".join(str(option.prompt) for option in options.options)
+        assert "WP-1.2.2" in rendered
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_close_restores_last_viewed_wbs_selection() -> None:
+    """AC-3: returning from dependency exploration restores a meaningful
+    WBS selection (the item most recently jumped to/inspected)."""
+    package = build_package_with_relationships()
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1  # WP-1.1.1, under "foundation".
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        options = screen.query_one("#dep-options", OptionList)
+
+        option_id = next(
+            option_id
+            for option_id, neighbor_id in screen._targets.items()
+            if neighbor_id == "WP-1.2.2"
+        )
+        options.highlighted = options.get_option_index(option_id)
+        options.action_select()
+        await pilot.pause()
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, DependencyScreen)
+        detail = app.query_one("#detail")
+        assert "WP-1.2.2" in detail.text
+        assert "Item details" in detail.text
+        assert tree.cursor_node.data.work_package.id == "WP-1.2.2"
+        assert app.focused is tree
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_shows_explicit_empty_state_for_isolated_work_package() -> (
+    None
+):
+    """AC-4: a work package with no prerequisites or dependents gets an
+    explicit empty state, not an error or blank screen."""
+    package = build_package()  # No dependencies at all in this fixture.
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 1  # WP-1.1.2, under "foundation".
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        header = screen.query_one("#dep-header")
+        assert "No dependencies" in header.text
+
+        options = screen.query_one("#dep-options", OptionList)
+        rendered = " ".join(str(option.prompt) for option in options.options)
+        assert "(none)" in rendered
+
+
+@pytest.mark.asyncio
+async def test_dependency_screen_shows_explicit_empty_state_for_isolated_workstream() -> (
+    None
+):
+    """AC-4: a workstream with no incoming or outgoing edges gets an
+    explicit empty state, not an error or blank screen."""
+    package = build_package()  # No dependencies at all in this fixture.
+    app = PlanApp(package)
+    async with app.run_test() as pilot:
+        tree = app.query_one(WBSTree)
+        tree.cursor_line = 0  # "foundation" workstream.
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, DependencyScreen)
+        header = screen.query_one("#dep-header")
+        assert "No dependencies" in header.text
