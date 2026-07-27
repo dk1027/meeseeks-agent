@@ -12,38 +12,25 @@ shell establishes the regions and navigation it will fill in.
 
 from __future__ import annotations
 
-from rich.markup import escape
-
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, VerticalScroll
-from textual.widgets import Footer, Header, Static, Tree
+from textual.widgets import Footer, Header, Tree
 
-from meeseeks.plan import (
-    DependencyEdge,
-    ExecutionPackage,
-    WorkPackage,
-    Workstream,
-    WorkstreamEdge,
+from meeseeks.plan import ExecutionPackage
+from meeseeks.plan_tui.navigator import NodeData, WBSTree, WorkPackageNode, WorkstreamNode
+from meeseeks.plan_tui.render import (
+    WELCOME_TEXT,
+    TextPane,
+    render_work_package,
+    render_workstream,
 )
-from meeseeks.plan_tui.navigator import WBSTree, WorkPackageNode, WorkstreamNode
-from meeseeks.plan_tui.screens import HelpScreen
-
-WELCOME_TEXT = "Select a workstream or work package to inspect it here."
+from meeseeks.plan_tui.screens import DependencyScreen, HelpScreen
 
 
-class DetailPane(Static):
-    """The selected-item pane.
-
-    Tracks its current plain-text content on `.text` (in addition to the
-    renderable Static keeps internally) so tests can assert on it without
-    reaching into Textual's private rendering internals.
-    """
+class DetailPane(TextPane):
+    """The selected-item pane."""
 
     text: str = WELCOME_TEXT
-
-    def update(self, content: str = "", *, layout: bool = True) -> None:  # type: ignore[override]
-        self.text = content
-        super().update(content, layout=layout)
 
 
 class PlanApp(App[None]):
@@ -73,6 +60,7 @@ class PlanApp(App[None]):
 
     BINDINGS = [
         ("q", "quit", "Quit"),
+        ("d", "open_dependencies", "Dependencies"),
         ("question_mark", "show_help", "Help"),
     ]
 
@@ -80,6 +68,7 @@ class PlanApp(App[None]):
         super().__init__()
         self._package = package
         self.sub_title = package.title
+        self._selected: NodeData | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=False)
@@ -94,110 +83,66 @@ class PlanApp(App[None]):
 
     def on_tree_node_selected(self, event: Tree.NodeSelected[object]) -> None:
         data = event.node.data
+        if isinstance(data, (WorkstreamNode, WorkPackageNode)):
+            self._show_detail(data)
+
+    def _show_detail(self, data: NodeData) -> None:
+        self._selected = data
         detail = self.query_one("#detail", DetailPane)
         if isinstance(data, WorkstreamNode):
-            detail.update(_render_workstream(data.workstream, self._package))
+            detail.update(render_workstream(data.workstream, self._package))
         elif isinstance(data, WorkPackageNode):
-            detail.update(_render_work_package(data.work_package))
+            detail.update(render_work_package(data.work_package))
 
     def action_show_help(self) -> None:
         self.push_screen(HelpScreen())
 
+    def action_open_dependencies(self) -> None:
+        tree = self.query_one("#navigator", WBSTree)
+        node = tree.cursor_node
+        if node is None or not isinstance(node.data, (WorkstreamNode, WorkPackageNode)):
+            return
 
-def _render_workstream(workstream: Workstream, package: ExecutionPackage) -> str:
-    """Render a workstream's identity, ownership, packages, and edge rollups."""
-    lines = [
-        f"[b]{escape(workstream.id)}[/b]  {escape(workstream.title)}",
-        "",
-        "[b]Ownership[/b]",
-    ]
-    if workstream.ownership:
-        lines.extend(f"  - {escape(pattern)}" for pattern in workstream.ownership)
-    else:
-        lines.append("  (none declared)")
+        def _on_dismiss(result: NodeData | None) -> None:
+            if result is not None:
+                self._restore_selection(result)
 
-    contained = [
-        wp for wp in package.work_packages if wp.workstream_id == workstream.id
-    ]
-    lines.append("")
-    lines.append(f"[b]Work packages[/b] ({len(contained)})")
-    if contained:
-        lines.extend(f"  - {escape(wp.id)}  {escape(wp.task.title)}" for wp in contained)
-    else:
-        lines.append("  (none)")
+        self.push_screen(DependencyScreen(node.data, self._package), _on_dismiss)
 
-    lines.append("")
-    lines.append("[b]Incoming[/b]")
-    lines.extend(_render_workstream_edges(workstream.incoming))
+    def _restore_selection(self, data: NodeData) -> None:
+        """Restore a meaningful WBS selection after dependency exploration.
 
-    lines.append("")
-    lines.append("[b]Outgoing[/b]")
-    lines.extend(_render_workstream_edges(workstream.outgoing))
-
-    return "\n".join(lines)
+        Finds the tree node matching `data`'s identity (a workstream or work
+        package the user most recently jumped to or inspected in the
+        dependency screen), moves the navigator cursor there, refreshes the
+        detail pane to match, and returns keyboard focus to the tree.
+        """
+        tree = self.query_one("#navigator", WBSTree)
+        target_line = _find_node_line(tree, data)
+        if target_line is not None and target_line >= 0:
+            tree.cursor_line = target_line
+        self._show_detail(data)
+        tree.focus()
 
 
-def _render_workstream_edges(edges: tuple[WorkstreamEdge, ...]) -> list[str]:
-    if not edges:
-        return ["  (none)"]
-    return [
-        f"  - {escape(edge.workstream_id)}  [{escape(edge.type)}]  {escape(edge.reason)}"
-        for edge in edges
-    ]
+def _find_node_line(tree: WBSTree, data: NodeData) -> int | None:
+    """Return the cursor line of the tree node whose identity matches `data`."""
+    target_id = (
+        data.workstream.id if isinstance(data, WorkstreamNode) else data.work_package.id
+    )
 
+    def walk(node: object) -> int | None:
+        node_data = node.data  # type: ignore[attr-defined]
+        if isinstance(node_data, WorkstreamNode) and isinstance(data, WorkstreamNode):
+            if node_data.workstream.id == target_id:
+                return node.line  # type: ignore[attr-defined]
+        elif isinstance(node_data, WorkPackageNode) and isinstance(data, WorkPackageNode):
+            if node_data.work_package.id == target_id:
+                return node.line  # type: ignore[attr-defined]
+        for child in node.children:  # type: ignore[attr-defined]
+            found = walk(child)
+            if found is not None:
+                return found
+        return None
 
-def _render_work_package(work_package: WorkPackage) -> str:
-    """Render every documented task-contract field plus WBS/workstream/graph context."""
-    task = work_package.task
-    lines = [
-        f"[b]{escape(work_package.id)}[/b]  {escape(task.title)}",
-        f"WBS: {escape(work_package.wbs)}",
-        f"Workstream: {escape(work_package.workstream_id)}",
-        f"Task path: {escape(str(work_package.task_path))}",
-        "",
-        "[b]Description[/b]",
-        escape(task.description),
-    ]
-
-    lines.append("")
-    lines.append("[b]Out of scope[/b]")
-    if task.out_of_scope:
-        lines.extend(f"  - {escape(item)}" for item in task.out_of_scope)
-    else:
-        lines.append("  (none declared)")
-
-    lines.append("")
-    lines.append("[b]Acceptance criteria[/b]")
-    if task.acceptance_criteria:
-        lines.extend(
-            f"  - {escape(ac.id)}: {escape(ac.description)}"
-            for ac in task.acceptance_criteria
-        )
-    else:
-        lines.append("  (none declared)")
-
-    lines.append("")
-    lines.append("[b]Verification commands[/b]")
-    if task.verification_commands:
-        lines.extend(f"  - {escape(cmd)}" for cmd in task.verification_commands)
-    else:
-        lines.append("  (none declared)")
-
-    lines.append("")
-    lines.append("[b]Prerequisites[/b]")
-    lines.extend(_render_dependency_edges(work_package.prerequisites))
-
-    lines.append("")
-    lines.append("[b]Dependents[/b]")
-    lines.extend(_render_dependency_edges(work_package.dependents))
-
-    return "\n".join(lines)
-
-
-def _render_dependency_edges(edges: tuple[DependencyEdge, ...]) -> list[str]:
-    if not edges:
-        return ["  (none)"]
-    return [
-        f"  - {escape(edge.package_id)}  [{escape(edge.type)}]  {escape(edge.reason)}"
-        for edge in edges
-    ]
+    return walk(tree.root)
