@@ -1,0 +1,13 @@
+version = 1
+title = "Invalid plan (missing task file)"
+
+[[workstreams]]
+id = "core"
+title = "Core workstream"
+ownership = ["src/**"]
+
+[[work_packages]]
+id = "WP-1"
+wbs = "1"
+task = "tasks/does-not-exist.toml"
+workstream = "core"
