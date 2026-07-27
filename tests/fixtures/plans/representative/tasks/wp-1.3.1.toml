@@ -1,0 +1,33 @@
+version = 1
+id = "WP-1.3.1"
+title = "Integrated plan command"
+description = """
+Wire the public `meeseeks plan` command together: discover a plan.toml,
+load and validate it as an execution package, and open the TUI shell. This
+work package integrates outputs from both the foundation workstream (the
+loader) and the TUI workstream (the shell), so it only becomes possible
+once both have landed.
+"""
+
+out_of_scope = [
+    "Rolling back a partially integrated feature once merged",
+    "Supporting more than one plan.toml discovered per invocation",
+]
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "Running `meeseeks plan` with no argument discovers .meeseeks/plan.toml in the current directory."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "A missing, malformed, or inconsistent execution package fails with an actionable message and a nonzero exit before the TUI opens."
+
+[[acceptance_criteria]]
+id = "AC-3"
+description = "A valid execution package opens the TUI shell without modifying the plan or any task file."
+
+[verification]
+commands = [
+    "uv run pytest tests/test_plan_command.py",
+    "uv run ruff check src/meeseeks/commands/plan.py",
+]

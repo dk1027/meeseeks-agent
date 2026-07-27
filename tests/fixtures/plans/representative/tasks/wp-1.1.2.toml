@@ -1,0 +1,18 @@
+version = 1
+id = "WP-1.1.2"
+title = "Loader and graph validation"
+description = """
+Parse plan.toml and its referenced task contracts into the normalized model,
+validating cross-references, dependency types, and acyclicity.
+"""
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "A valid execution package loads into a fully normalized in-memory model."
+
+[[acceptance_criteria]]
+id = "AC-2"
+description = "An invalid execution package raises PlanLoadError naming the offending file and field."
+
+[verification]
+commands = ["uv run pytest tests/test_plan.py"]

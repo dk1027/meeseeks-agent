@@ -147,7 +147,28 @@ Version 1 dependency types are `hard`, `interface`, `decision`, `environment`, `
 
 For the MVP, `meeseeks verify` consumes individual task files. The plan is produced by `meeseeks-wbsify` for people and builder agents; plan-level orchestration is a later capability.
 
-Run `meeseeks plan` to open a read-only explorer over an execution package: a collapsible workstream/work-package tree with a detail pane for the selected item. With no argument it looks for `.meeseeks/plan.toml` in the current directory; pass a path (`meeseeks plan path/to/plan.toml`) to open a plan elsewhere. The plan and every task file it references are validated before the explorer opens; a missing, malformed, unsupported, or inconsistent execution package fails with an actionable message and a nonzero exit instead of launching.
+### Exploring a plan
+
+Run `meeseeks plan` to open a read-only explorer over an execution package: a collapsible workstream/work-package tree with a detail pane for the selected item. With no argument it looks for `.meeseeks/plan.toml` in the current directory (no upward search, and only that fixed location); pass a path (`meeseeks plan path/to/plan.toml`) to open a plan elsewhere.
+
+The plan and every task file it references are validated before the explorer opens: unique workstream and work-package IDs, known workstream/dependency references, task contracts whose own `id` matches the work package that references them, supported dependency types, and an acyclic dependency graph. A missing, malformed, unsupported, or inconsistent execution package fails with an actionable message naming the offending file and field, and a nonzero exit, instead of launching.
+
+The tree groups work packages by workstream in WBS order. Selecting a workstream shows its ownership patterns, contained work packages, and cross-workstream dependency rollups (incoming/outgoing, each with type and reason). Selecting a work package shows its full task contract — description, out-of-scope items, acceptance criteria, and verification commands — alongside its WBS position, workstream, task file path, and its own prerequisite/dependent edges (each with type and reason).
+
+Key bindings:
+
+| Key(s)              | Action                                              |
+| -------------------- | ---------------------------------------------------- |
+| `↑`/`↓`, `j`/`k`     | Move the selection                                  |
+| `enter`               | Expand/collapse a workstream, or inspect a work package |
+| `d`                   | Open the dependency view for the current selection  |
+| `?`                   | Show contextual help                                |
+| `escape`              | Close the dependency view or help                   |
+| `q`                   | Quit                                                |
+
+The dependency view lists every prerequisite/dependent edge for a work package (or every incoming/outgoing edge for a workstream), each with the neighbor's ID, dependency type, and full reason. Selecting an edge jumps to that neighbor and re-renders the view with its own edges, so you can keep exploring outward in either direction; closing the view restores the WBS selection to whatever you most recently jumped to or inspected.
+
+`meeseeks plan` is strictly read-only: it never writes to the plan file, any task file, or anything else on disk — it only loads and renders. Comments and revision workflows, plan execution, and verification-status tracking are all out of scope for this MVP; the explorer shows the structure and content of a plan, not its execution state.
 
 ### Output
 

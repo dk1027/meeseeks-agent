@@ -1,0 +1,15 @@
+version = 1
+id = "WP-1.1.3"
+title = "Contributor style guide"
+description = """
+Document the module-layout and naming conventions used across the plan
+loader and TUI so future work packages stay consistent. Has no dependency
+on, or dependents from, any other work package in this plan.
+"""
+
+[[acceptance_criteria]]
+id = "AC-1"
+description = "The style guide covers module layout, naming, and docstring conventions."
+
+[verification]
+commands = ["uv run ruff check src/meeseeks"]
